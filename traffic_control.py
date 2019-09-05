@@ -9,6 +9,11 @@ from threading import Thread
 
 reference_frame = None
 text_font = cv2.FONT_HERSHEY_SIMPLEX
+lane1_count = 0
+lane2_count = 0
+lane3_count = 0
+lane4_count = 0
+
 
 class FrameReceiver(Thread):
 
@@ -16,39 +21,39 @@ class FrameReceiver(Thread):
 
         while True:
             listensocket = socket.socket()
-            Port = 8000
+            port = 8000
             maxConnections = 5
-            IP = socket.gethostname()
+            IP = "0.0.0.0"
 
-            listensocket.bind(('', Port))
+            listensocket.bind(('', port))
             listensocket.listen(maxConnections)
 
-            print("Server started at " + IP + " on port " + str(Port))
-
-            (clientSocket, adress) = listensocket.accept()
-
-            print("New connection made")
-            
-            if os.path.isfile("traffic_data.png"):
-                os.remove("traffic_data.png")
-                
-            file = open("traffic_data.png", "w+b")
-            
-            start = time.time()
-
+            print("Frame transfer server started at " + IP + " on port " + str(port))
+            img_count = 0
             while True:
-                data = clientSocket.recv(1024)
-            
-                if not data:
-                    file.write(data)
-                    break
-            
-                file.write(data)
+                (clientSocket, adress) = listensocket.accept()
 
-            end = time.time()
+                print("Picture transfer started", adress)
 
-            print("Image transfer time:", round(end - start, 2))
-            print("Done.")
+                file = open(f"traffic_data{img_count}.jpg", "w+b")
+
+                start = time.time()
+
+                while True:
+                    data = clientSocket.recv(1024)
+
+                    if not data:
+                        break
+
+                    qfile.write(data)
+
+                end = time.time()
+                print(
+                    f"Image transfer time: {round(end - start, 2)} THREAD SIGNAL HERE")
+
+                detect_cars(f"traffic_data{img_count}.jpg")
+                
+                img_count += 1
 
 
 class TrafficLigth(Thread):
@@ -62,7 +67,7 @@ class TrafficLigth(Thread):
         listensocket.bind(('', Port))
         listensocket.listen(maxConnections)
 
-        print("Server started at " + IP + " on port " + str(Port))
+        print("Traffic control server started at " + IP + " on port " + str(Port))
 
         (clientSocket, adress) = listensocket.accept()
 
@@ -71,21 +76,26 @@ class TrafficLigth(Thread):
         while (True):
             try:
                 clientSocket.send(b"1")
-                print("start sent")
                 time.sleep(12)
                 clientSocket.send(b"0")
-                print("stop sent")
                 time.sleep(12)
             except:
                 print("Connection closed")
                 break          
 
-def detect_cars(frame):
-    cars_on_screen = 0
+def detect_cars(path_to_frame):
+    global lane1_count
+    global lane2_count
+    global lane3_count
+    global lane4_count
+
     lane1_count = 0
     lane2_count = 0
     lane3_count = 0
     lane4_count = 0
+    cars_on_screen = 0
+
+    frame = cv2.imread(path_to_frame)
 
     h, w, c = frame.shape
 
@@ -100,7 +110,7 @@ def detect_cars(frame):
 
     # LANE 1 => SOUTH
     lane1_polygon = np.array([
-        [(934, 662), (968, 662), (978, 1078), (944, 1078)]
+        [(944, 682), (968, 682), (973, 1058), (949, 1058)]
     ])
     # cv2.polylines(frame,[lane1_polygon],True,(0,255,0), 2)
     lane1 = np.zeros_like(frame)
@@ -118,11 +128,11 @@ def detect_cars(frame):
             cars_on_screen += 1
             lane1_count += 1
 
-    cv2.putText(frame, f"{lane1_count}", (947, 649), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
+    cv2.putText(frame, f"{lane1_count}", (973, 677), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
 
     # LANE 2 ==> WEST
     lane2_polygon = np.array([
-        [(1, 507), (487, 532), (804, 540), (804, 570), (469, 567), (1, 544)]
+        [(315, 577), (487, 586), (860, 600), (860, 620), (500, 612), (315, 600)]
     ])
     # cv2.polylines(frame,[lane2_polygon],True,(0,255,0), 2)
     lane2 = np.zeros_like(frame)
@@ -140,11 +150,11 @@ def detect_cars(frame):
             cars_on_screen += 1
             lane2_count += 1
 
-    cv2.putText(frame, f"{lane2_count}", (825, 566), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
+    cv2.putText(frame, f"{lane2_count}", (868, 642), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
 
     # LANE 3 ==> EAST
     lane3_polygon = np.array([
-        [(895, 1), (928, 1), (928, 411), (890, 411)]
+        [(921, 16), (943, 16), (938, 519), (914, 519)]
     ])
     # cv2.polylines(frame,[lane3_polygon],True,(0,255,0), 2)
     lane3 = np.zeros_like(frame)
@@ -162,10 +172,10 @@ def detect_cars(frame):
             cars_on_screen += 1
             lane3_count += 1
 
-    cv2.putText(frame, f"{lane3_count}", (905, 440), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
+    cv2.putText(frame, f"{lane3_count}", (892, 525), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
 
     lane4_polygon = np.array([
-        [(1053, 495), (1830, 510), (1830, 539), (1054, 529)]
+        [(1021, 570), (1515, 575), (1515, 601), (1021, 595)]
     ])
     # cv2.polylines(frame,[lane4_polygon],True,(0,255,0), 2)
     lane4 = np.zeros_like(frame)
@@ -183,24 +193,32 @@ def detect_cars(frame):
             cars_on_screen += 1
             lane4_count += 1
 
-    cv2.putText(frame, f"{lane4_count}", (1010, 524), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
+    cv2.putText(frame, f"{lane4_count}", (1022, 564), text_font, 0.75, (255,0,0), 2, cv2.LINE_AA)
 
     frame = cv2.resize(frame, None, fx=0.65, fy=0.65, interpolation=cv2.INTER_AREA)
     cv2.imshow('display', frame)
 
     print("Cars on screen:", cars_on_screen)
-    while (True):
-        if cv2.waitKey(0) == ord('q'):
-            break
+
+    print("LANE_COUNT:")
+    print(f"  {lane3_count}")
+    print(f"{lane2_count}   {lane4_count}")
+    print(f"  {lane1_count}")
+
+    # cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-# FrameReceiver().start()    
+# start the threads
+FrameReceiver().start()    
 TrafficLigth().start()
 
-reference_frame = cv2.imread("reference_frame.png")
+# set up reference frame
+reference_frame = cv2.imread("reference_frame.jpg")
 reference_frame = cv2.cvtColor(reference_frame, cv2.COLOR_BGR2GRAY)
 
-image = cv2.imread("traffic_data.jpg")
-
-if (image is not None):
-    detect_cars(image)
+# clean up frames from last session
+for i in range(0, 1000):
+    if os.path.exists(f"traffic_data{i}.jpg"):
+        os.remove(f"traffic_data{i}.jpg")
+    else:
+        break
